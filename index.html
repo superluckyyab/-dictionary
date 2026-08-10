@@ -319,6 +319,33 @@
   .lp-actions { display: flex; gap: 7px; }
   .lp-actions .txtbtn { flex: 1; justify-content: center; padding: 8px 10px; font-size: 13px; white-space: nowrap; }
   .reader-tip { font-size: 12px; color: var(--ink-faint); font-style: italic; padding: 9px 24px; background: var(--page-2); border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 7px; }
+
+  /* ---------- Authentication and account ---------- */
+  .auth-shell { min-height: 100vh; display: grid; place-items: center; padding: 28px 18px; }
+  .auth-card { width: min(100%, 540px); margin: 0; }
+  .auth-card .crest { margin-bottom: 10px; }
+  .auth-card h2 { margin-top: 30px; }
+  .auth-actions { align-items: stretch; flex-wrap: wrap; }
+  .auth-actions .txtbtn { justify-content: center; min-height: 42px; }
+  .auth-message, .auth-error { margin: 18px 0 0; font-size: 14px; line-height: 1.5; }
+  .auth-message { color: var(--lvl-a1); }
+  .auth-error { color: var(--accent); }
+  .accountbar { margin-top: 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .accountbar .txtbtn { margin-left: auto; }
+  .account-badge { border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px; font-size: 12px; letter-spacing: .05em; }
+  .account-badge.owner { color: var(--accent); border-color: rgba(140,47,40,.35); background: rgba(140,47,40,.06); }
+  .account-badge.guest { color: var(--ink-soft); background: var(--page-2); }
+  .account-name { color: var(--ink-faint); font-size: 13px; overflow-wrap: anywhere; }
+  .migration-banner { margin-top: 18px; padding: 14px 16px; border: 1px solid rgba(176,132,49,.42); background: rgba(176,132,49,.07); display: flex; align-items: center; gap: 16px; }
+  .migration-banner > div { flex: 1; min-width: 0; }
+  .migration-banner strong, .migration-banner span { display: block; }
+  .migration-banner strong { color: var(--gold); margin-bottom: 4px; }
+  .migration-banner span { color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+  @media (max-width: 560px) {
+    .accountbar .txtbtn { margin-left: 0; }
+    .migration-banner { align-items: stretch; flex-direction: column; }
+  }
+
 </style>
 </head>
 <body>
@@ -332,6 +359,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
   <script src="supabase-client.js"></script>
   <script src="data-service.js"></script>
+  <script src="app-state.js"></script>
   <script src="migration-service.js"></script>
   <script type="text/babel" src="seed.jsx"></script>
   <script type="text/babel" src="app.jsx"></script>

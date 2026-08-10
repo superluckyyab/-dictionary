@@ -40,6 +40,7 @@ export async function buildSite({ source = root, output = join(root, 'dist'), en
     'index.html',
     'app.jsx',
     'seed.jsx',
+    'app-state.js',
     'supabase-client.js',
     'data-service.js',
     'migration-service.js'

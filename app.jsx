@@ -468,35 +468,167 @@ function ImportCsv({ onImport }) {
   );
 }
 
+/* ---------------- Authentication ---------------- */
+function AuthScreen({ busy, error, message, onEmail, onGuest }) {
+  const [email, setEmail] = useState("");
+  const submit = (event) => {
+    event.preventDefault();
+    if (email.trim()) onEmail(email);
+  };
+
+  return (
+    <main className="auth-shell">
+      <section className="panel-card auth-card">
+        <div className="crest"><h1>Lexicon</h1><span className="crest-rule" /></div>
+        <p className="tagline">Your shared wordbook, now backed by Supabase.</p>
+        <h2>Open the wordbook</h2>
+        <p className="sub">Use your permanent email account, or enter a temporary guest session.</p>
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Owner email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              disabled={busy}
+            />
+          </div>
+          <div className="form-actions auth-actions">
+            <button className="txtbtn primary" type="submit" disabled={busy || !email.trim()}>
+              Email me a sign-in link
+            </button>
+            <button className="txtbtn" type="button" onClick={onGuest} disabled={busy}>
+              Continue as guest
+            </button>
+          </div>
+        </form>
+        {message && <p className="auth-message">{message}</p>}
+        {error && <p className="auth-error">{error}</p>}
+      </section>
+    </main>
+  );
+}
+
+function StatusScreen({ title, message, onRetry }) {
+  return (
+    <main className="auth-shell">
+      <section className="panel-card auth-card">
+        <div className="crest"><h1>Lexicon</h1><span className="crest-rule" /></div>
+        <h2>{title}</h2>
+        <p className="sub">{message}</p>
+        {onRetry && <button className="txtbtn primary" onClick={onRetry}>Try again</button>}
+      </section>
+    </main>
+  );
+}
+
 /* ---------------- App ---------------- */
 function App() {
-  const [words, setWords] = useState(loadWords);
-  const [tab, setTab] = useState("dictionary"); // dictionary | favorites | add | import
+  const [words, setWords] = useState([]);
+  const [phase, setPhase] = useState("loading"); // loading | signed_out | ready | error
+  const [session, setSession] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [localImport, setLocalImport] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [tab, setTab] = useState("dictionary");
   const [q, setQ] = useState("");
   const [levels, setLevels] = useState([]);
   const [reader, setReader] = useState(null);
-  const [lookup, setLookup] = useState(null); // { word, rect } from text selection
+  const [lookup, setLookup] = useState(null);
   const [toast, setToast] = useState(null);
   const [visibleCount, setVisibleCount] = useState(80);
   const sentinelRef = useRef(null);
   const audio = useAudio();
 
+  const user = session && session.user;
+  const owner = window.DictionaryDataModule && window.DictionaryDataModule.isOwner(user);
+  const dataService = window.DictionaryData;
+
+  const flash = useCallback((message) => setToast(message), []);
+
+  const loadForSession = useCallback(async (nextSession) => {
+    if (!nextSession || !nextSession.user) {
+      setSession(null);
+      setWords([]);
+      setLocalImport(null);
+      setPhase("signed_out");
+      return;
+    }
+
+    setPhase("loading");
+    setLoadError(null);
+    try {
+      const loaded = await window.DictionaryData.loadDictionary(nextSession.user.id);
+      setSession(nextSession);
+      setWords(loaded);
+      setPhase("ready");
+      if (window.DictionaryDataModule.isOwner(nextSession.user)) {
+        try {
+          const local = window.DictionaryMigration.inspectLocalData(localStorage);
+          setLocalImport(local.found ? local : null);
+        } catch (error) {
+          setLocalImport(null);
+          flash(error.message);
+        }
+      } else {
+        setLocalImport(null);
+      }
+    } catch (error) {
+      setSession(nextSession);
+      setLoadError(error);
+      setPhase("error");
+    }
+  }, [flash]);
+
   useEffect(() => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(words)); } catch (e) {}
-  }, [words]);
+    let active = true;
+    if (!dataService) {
+      setLoadError((window.DictionarySupabase && window.DictionarySupabase.error) || new Error("Supabase is unavailable"));
+      setPhase("error");
+      return undefined;
+    }
+
+    dataService.restoreSession()
+      .then((restored) => { if (active) return loadForSession(restored); })
+      .catch((error) => {
+        if (active) {
+          setLoadError(error);
+          setPhase("error");
+        }
+      });
+
+    const listener = dataService.onAuthStateChange((event, nextSession) => {
+      if (!active || event === "INITIAL_SESSION") return;
+      loadForSession(nextSession);
+    });
+
+    return () => {
+      active = false;
+      const subscription = listener && listener.data && listener.data.subscription;
+      if (subscription) subscription.unsubscribe();
+    };
+  }, [dataService, loadForSession]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(timer);
   }, [toast]);
 
-  // Dismiss the selection-lookup popover on outside click, scroll, or Esc.
   useEffect(() => {
     if (!lookup) return;
-    const close = (e) => { if (e.target.closest && e.target.closest(".lookup-pop")) return; setLookup(null); };
+    const close = (event) => {
+      if (event.target.closest && event.target.closest(".lookup-pop")) return;
+      setLookup(null);
+    };
     const onScroll = () => setLookup(null);
-    const onKey = (e) => { if (e.key === "Escape") setLookup(null); };
+    const onKey = (event) => { if (event.key === "Escape") setLookup(null); };
     document.addEventListener("mousedown", close);
     window.addEventListener("scroll", onScroll, true);
     document.addEventListener("keydown", onKey);
@@ -507,148 +639,256 @@ function App() {
     };
   }, [lookup]);
 
-  const flash = (m) => setToast(m);
+  const signInGuest = async () => {
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const result = await dataService.signInAnonymously();
+      await loadForSession(result.session);
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
 
-  const collect = useCallback((id) => setWords((ws) => ws.map((w) => w.id === id ? { ...w, fav: (w.fav || 0) + 1 } : w)), []);
-  const recollect = useCallback((id, delta) => setWords((ws) => ws.map((w) => w.id === id ? { ...w, fav: Math.max(0, (w.fav || 0) + delta) } : w)), []);
-  const openReader = useCallback((w) => setReader(w), []);
-  const playWord = useCallback((w) => audio.play(w), [audio.play]);
+  const signInEmail = async (email) => {
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthMessage("");
+    try {
+      await dataService.signInWithEmail(email, window.location.origin);
+      setAuthMessage("Check your email and open the sign-in link on this device.");
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await dataService.signOut();
+      await loadForSession(null);
+    } catch (error) {
+      flash(error.message);
+    }
+  };
+
+  const persistWord = useCallback(async (id, transform, successMessage) => {
+    try {
+      const nextWords = await window.DictionaryAppState.persistWordChange(
+        words,
+        id,
+        transform,
+        (changed) => dataService.saveWordState(user.id, id, { fav: changed.fav, ai: changed.ai })
+      );
+      setWords(nextWords);
+      setReader((current) => current && current.id === id ? nextWords.find((word) => word.id === id) : current);
+      if (successMessage) flash(successMessage);
+    } catch (error) {
+      flash(error.message);
+    }
+  }, [dataService, flash, user, words]);
+
+  const collect = useCallback((id) => {
+    persistWord(id, (word) => ({ ...word, fav: (word.fav || 0) + 1 }));
+  }, [persistWord]);
+
+  const recollect = useCallback((id, delta) => {
+    persistWord(id, (word) => ({ ...word, fav: Math.max(0, (word.fav || 0) + delta) }));
+  }, [persistWord]);
+
   const uncollect = (id) => {
-    const w = words.find((x) => x.id === id);
-    setWords((ws) => ws.map((x) => x.id === id ? { ...x, fav: 0 } : x));
-    if (w) flash("“" + w.word + "” removed from collected");
+    const word = words.find((entry) => entry.id === id);
+    persistWord(id, (entry) => ({ ...entry, fav: 0 }), word ? `“${word.word}” removed from collected` : "Removed from collected");
   };
-  const clearAllCollected = () => {
-    setWords((ws) => ws.map((w) => ((w.fav || 0) > 0 ? { ...w, fav: 0 } : w)));
-    flash("Collected list cleared");
-  };
-  const setAi = (id, ai) => setWords((ws) => ws.map((w) => {
-    if (w.id !== id) return w;
-    const next = { ...w, ai };
-    // If this word's level was never set, adopt the AI's CEFR estimate.
-    if (!LEVELS.includes(w.level) && ai && LEVELS.includes(ai.level)) next.level = ai.level;
-    return next;
-  }));
 
-  // Find a dictionary entry for a raw word (case-insensitive). Returns entry or null.
+  const clearAllCollected = async () => {
+    try {
+      const next = await window.DictionaryAppState.persistClearCollected(
+        words,
+        () => dataService.clearCollected(user.id)
+      );
+      setWords(next);
+      flash("Collected list cleared");
+    } catch (error) {
+      flash(error.message);
+    }
+  };
+
+  const setAi = (id, ai) => {
+    persistWord(id, (word) => {
+      const next = { ...word, ai };
+      if (!LEVELS.includes(word.level) && ai && LEVELS.includes(ai.level)) next.level = ai.level;
+      return next;
+    });
+  };
+
+  const openReader = useCallback((word) => setReader(word), []);
+  const playWord = useCallback((word) => audio.play(word), [audio.play]);
+
   const findEntry = (text) => {
-    const t = (text || "").trim().toLowerCase();
-    if (!t) return null;
-    return words.find((w) => w.word.toLowerCase() === t) || null;
+    const normalized = String(text || "").trim().toLowerCase();
+    return normalized ? words.find((word) => word.word.toLowerCase() === normalized) || null : null;
   };
-  // Ensure a word exists; create a blank entry if missing. Returns the entry.
-  const ensureEntry = (text) => {
-    const t = (text || "").trim().toLowerCase();
-    const existing = findEntry(t);
+
+  const ensureEntry = async (text) => {
+    const normalized = String(text || "").trim().toLowerCase();
+    const existing = findEntry(normalized);
     if (existing) return existing;
-    const id = "look-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
-    const entry = {
-      id, word: t, level: "—", pos: "word", def: "", ai: null, fav: 0,
-      defUrl: "https://www.oxfordlearnersdictionaries.com/definition/english/" + encodeURIComponent(t),
-      audioUrl: "",
-    };
-    setWords((ws) => [entry, ...ws]);
-    return entry;
+    if (!owner) {
+      flash("This word is not in the shared dictionary. Only the owner can add it.");
+      return null;
+    }
+    try {
+      const created = await dataService.createEntry({
+        word: normalized,
+        level: "UNKNOWN",
+        pos: "word",
+        def: "",
+        defUrl: "https://www.oxfordlearnersdictionaries.com/definition/english/" + encodeURIComponent(normalized),
+        audioUrl: ""
+      });
+      setWords((current) => [created, ...current]);
+      return created;
+    } catch (error) {
+      flash(error.message);
+      return null;
+    }
   };
-  // Selection-lookup actions
-  const openLookup = (text) => {
-    const entry = ensureEntry(text);
+
+  const openLookup = async (text) => {
+    const entry = await ensureEntry(text);
     setLookup(null);
-    setReader(entry); // reader auto-fetches the friendly explanation
+    if (entry) setReader(entry);
   };
-  const collectLookup = (text) => {
-    const entry = ensureEntry(text);
+
+  const collectLookup = async (text) => {
+    const entry = await ensureEntry(text);
     setLookup(null);
+    if (!entry) return;
     collect(entry.id);
     setReader(entry);
-    flash("“" + entry.word + "” collected");
+    flash(`“${entry.word}” collected`);
   };
 
-  const addWord = (data) => {
-    let merged = false;
-    setWords((ws) => {
-      const k = wordKey(data);
-      if (ws.some((w) => wordKey(w) === k)) {
-        merged = true;
-        return ws.map((w) => {
-          if (wordKey(w) !== k) return w;
-          return {
-            ...w,
-            def: w.def || data.def || "",
-            level: LEVELS.includes(w.level) ? w.level : data.level,
-            defUrl: w.defUrl || data.defUrl,
-            audioUrl: w.audioUrl || data.audioUrl,
-          };
+  const addWord = async (data) => {
+    if (!owner) return;
+    try {
+      const existing = words.find((word) => wordKey(word) === wordKey(data));
+      let saved;
+      if (existing) {
+        saved = await dataService.updateEntry(existing.id, {
+          ...existing,
+          def: existing.def || data.def,
+          level: LEVELS.includes(existing.level) ? existing.level : data.level,
+          defUrl: existing.defUrl || data.defUrl,
+          audioUrl: existing.audioUrl || data.audioUrl
         });
+        saved.fav = existing.fav;
+        saved.ai = existing.ai;
+        setWords((current) => current.map((word) => word.id === existing.id ? saved : word));
+        flash(`“${data.word}” already existed — updated it`);
+      } else {
+        saved = await dataService.createEntry(data);
+        setWords((current) => [saved, ...current]);
+        flash(`“${data.word}” added to the wordbook`);
       }
-      const id = "user-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
-      return [{ id, fav: 0, ai: null, ...data }, ...ws];
-    });
-    setTab("dictionary");
-    flash(merged ? "“" + data.word + "” already existed — updated it" : "“" + data.word + "” added to the wordbook");
-  };
-  const importRows = (rows) => {
-    const stamp = Date.now();
-    let addedCount = 0, skipped = 0;
-    setWords((ws) => {
-      const seen = new Set(ws.map(wordKey));
-      const fresh = [];
-      rows.forEach((r, i) => {
-        const k = wordKey(r);
-        if (seen.has(k)) { skipped++; return; }
-        seen.add(k);
-        fresh.push({ id: "imp-" + stamp + "-" + i, fav: 0, ai: null, ...r });
-        addedCount++;
-      });
-      return [...fresh, ...ws];
-    });
-    setTab("dictionary");
-    flash("Imported " + addedCount + " " + (addedCount === 1 ? "word" : "words") +
-      (skipped ? " · skipped " + skipped + " duplicate" + (skipped === 1 ? "" : "s") : ""));
+      setTab("dictionary");
+    } catch (error) {
+      flash(error.message);
+    }
   };
 
-  const toggleLevel = (lv) => setLevels((ls) => ls.includes(lv) ? ls.filter((x) => x !== lv) : [...ls, lv]);
+  const importRows = async (rows) => {
+    if (!owner) return;
+    let added = 0;
+    let skipped = 0;
+    try {
+      for (const row of rows) {
+        const existing = await dataService.findEntry(row.word, row.pos);
+        if (existing) {
+          skipped += 1;
+        } else {
+          await dataService.createEntry(row);
+          added += 1;
+        }
+      }
+      setWords(await dataService.loadDictionary(user.id));
+      setTab("dictionary");
+      flash(`Imported ${added} ${added === 1 ? "word" : "words"}${skipped ? ` · skipped ${skipped} duplicates` : ""}`);
+    } catch (error) {
+      flash(error.message);
+    }
+  };
 
-  const favCount = useMemo(() => words.filter((w) => (w.fav || 0) > 0).length, [words]);
+  const importLocalWords = async () => {
+    if (!localImport || importBusy) return;
+    setImportBusy(true);
+    try {
+      const summary = await window.DictionaryMigration.importOwnerData(user, dataService, localImport.words);
+      setWords(await dataService.loadDictionary(user.id));
+      setLocalImport(null);
+      flash(`Browser data imported: ${summary.imported} changed, ${summary.skipped} unchanged, ${summary.failed} failed`);
+    } catch (error) {
+      flash(error.message);
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
+  const toggleLevel = (level) => setLevels((current) => current.includes(level)
+    ? current.filter((item) => item !== level)
+    : [...current, level]);
+
+  const favCount = useMemo(() => words.filter((word) => (word.fav || 0) > 0).length, [words]);
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    let list = words.filter((w) => {
-      if (levels.length && !levels.includes(w.level)) return false;
-      if (needle) {
-        return w.word.toLowerCase().includes(needle) ||
-          (w.def && w.def.toLowerCase().includes(needle)) ||
-          w.pos.toLowerCase().includes(needle);
-      }
-      return true;
+    let list = words.filter((word) => {
+      if (levels.length && !levels.includes(word.level)) return false;
+      if (!needle) return true;
+      return word.word.toLowerCase().includes(needle) ||
+        (word.def && word.def.toLowerCase().includes(needle)) ||
+        word.pos.toLowerCase().includes(needle);
     });
     if (tab === "favorites") {
-      list = list.filter((w) => (w.fav || 0) > 0).sort((a, b) =>
-        (b.fav || 0) - (a.fav || 0) || (a.word < b.word ? -1 : a.word > b.word ? 1 : 0));
-    } else {
-      list = list.slice().sort((a, b) =>
-        (a.word < b.word ? -1 : a.word > b.word ? 1 : (a.pos < b.pos ? -1 : a.pos > b.pos ? 1 : 0)));
+      return list.filter((word) => (word.fav || 0) > 0).sort((a, b) =>
+        (b.fav || 0) - (a.fav || 0) || a.word.localeCompare(b.word));
     }
-    return list;
+    return list.slice().sort((a, b) => a.word.localeCompare(b.word) || a.pos.localeCompare(b.pos));
   }, [words, q, levels, tab]);
 
-  // Windowing: only render a slice of the (possibly huge) filtered list.
   useEffect(() => { setVisibleCount(80); }, [q, levels, tab]);
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  const visRef = useRef(visibleCount); visRef.current = visibleCount;
+  const visibleRef = useRef(visibleCount); visibleRef.current = visibleCount;
   const totalRef = useRef(filtered.length); totalRef.current = filtered.length;
   useEffect(() => {
     const check = () => {
-      if (visRef.current >= totalRef.current) return;
-      const se = document.scrollingElement || document.documentElement;
-      const nearBottom = se.scrollHeight - (se.scrollTop + window.innerHeight) < 1000;
-      if (nearBottom) setVisibleCount((c) => Math.min(c + 80, totalRef.current));
+      if (visibleRef.current >= totalRef.current) return;
+      const scrolling = document.scrollingElement || document.documentElement;
+      if (scrolling.scrollHeight - (scrolling.scrollTop + window.innerHeight) < 1000) {
+        setVisibleCount((count) => Math.min(count + 80, totalRef.current));
+      }
     };
     window.addEventListener("scroll", check, { passive: true });
     window.addEventListener("resize", check);
-    check(); // in case the first page doesn't fill the viewport
-    return () => { window.removeEventListener("scroll", check); window.removeEventListener("resize", check); };
+    check();
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
   }, [filtered.length, tab]);
+
+  if (phase === "loading") {
+    return <StatusScreen title="Opening the wordbook…" message="Restoring your session and loading Supabase data." />;
+  }
+  if (phase === "signed_out") {
+    return <AuthScreen busy={authBusy} error={authError} message={authMessage} onEmail={signInEmail} onGuest={signInGuest} />;
+  }
+  if (phase === "error") {
+    return <StatusScreen title="The wordbook could not open" message={loadError ? loadError.message : "Unknown error"} onRetry={() => loadForSession(session)} />;
+  }
 
   const showList = tab === "dictionary" || tab === "favorites";
 
@@ -663,9 +903,29 @@ function App() {
           </div>
           <p className="tagline">A reader’s wordbook — collect what slips, hear it, and have it put plainly.</p>
 
+          <div className="accountbar">
+            <span className={"account-badge " + (owner ? "owner" : "guest")}>
+              {owner ? "Owner" : (user.is_anonymous ? "Guest session" : "Permanent account")}
+            </span>
+            <span className="account-name">{user.email || "Temporary anonymous user"}</span>
+            <button className="txtbtn" onClick={signOut}>Sign out</button>
+          </div>
+
+          {localImport && (
+            <div className="migration-banner">
+              <div>
+                <strong>Browser dictionary found</strong>
+                <span>{localImport.words.length} local entries can be copied to your permanent Supabase account. The browser copy will remain untouched.</span>
+              </div>
+              <button className="txtbtn primary" onClick={importLocalWords} disabled={importBusy}>
+                {importBusy ? "Importing…" : "Import browser data"}
+              </button>
+            </div>
+          )}
+
           <div className="searchbar">
             <span className="s-icon"><Icon.search /></span>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a word, part of speech, or meaning…" />
+            <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search a word, part of speech, or meaning…" />
             {q && <button className="s-clear" onClick={() => setQ("")}><Icon.x /></button>}
           </div>
 
@@ -676,60 +936,47 @@ function App() {
             <button className={"tab" + (tab === "favorites" ? " active" : "")} onClick={() => setTab("favorites")}>
               {Icon.bookmark(true)({ width: 13, height: 13 })} Collected <span className="pill">{favCount}</span>
             </button>
-            <button className={"tab" + (tab === "add" ? " active" : "")} onClick={() => setTab("add")}>
-              <Icon.plus /> Add
-            </button>
-            <button className={"tab" + (tab === "import" ? " active" : "")} onClick={() => setTab("import")}>
-              <Icon.upload /> Import
-            </button>
+            {owner && <button className={"tab" + (tab === "add" ? " active" : "")} onClick={() => setTab("add")}><Icon.plus /> Add</button>}
+            {owner && <button className={"tab" + (tab === "import" ? " active" : "")} onClick={() => setTab("import")}><Icon.upload /> Import</button>}
           </nav>
         </header>
 
         {showList && <LevelFilter active={levels} onToggle={toggleLevel} />}
-
-        {tab === "add" && <AddWord onAdd={addWord} />}
-        {tab === "import" && <ImportCsv onImport={importRows} />}
+        {owner && tab === "add" && <AddWord onAdd={addWord} />}
+        {owner && tab === "import" && <ImportCsv onImport={importRows} />}
 
         {showList && (
           <>
             <div className="list-bar">
               <p className="count-note">
-                {tab === "favorites"
-                  ? (filtered.length ? "Most often collected first — the ones you keep forgetting." : "")
-                  : null}
-                {tab === "dictionary" && (q || levels.length)
-                  ? filtered.length + " of " + words.length + " entries"
-                  : null}
+                {tab === "favorites" ? (filtered.length ? "Most often collected first — the ones you keep forgetting." : "") : null}
+                {tab === "dictionary" && (q || levels.length) ? `${filtered.length} of ${words.length} entries` : null}
               </p>
-              {tab === "favorites" && favCount > 0 && (
-                <button className="clear-all" onClick={clearAllCollected}>
-                  <Icon.trash /> Clear all ({favCount})
-                </button>
-              )}
+              {tab === "favorites" && favCount > 0 && <button className="clear-all" onClick={clearAllCollected}><Icon.trash /> Clear all ({favCount})</button>}
             </div>
 
             {filtered.length === 0 ? (
               <div className="empty">
                 <div className="glyph">{tab === "favorites" ? "✦" : "—"}</div>
-                <p>{tab === "favorites"
-                  ? "Nothing collected yet. Tap the ribbon on a word to file it here."
-                  : "No entries match your search."}</p>
+                <p>{tab === "favorites" ? "Nothing collected yet. Tap the ribbon on a word to file it here." : "No entries match your search."}</p>
               </div>
             ) : (
               <div className="entries">
-                {visible.map((w) => (
+                {visible.map((word) => (
                   <Entry
-                    key={w.id} w={w}
-                    isPlaying={audio.playing === w.id}
+                    key={word.id}
+                    w={word}
+                    isPlaying={audio.playing === word.id}
                     onPlay={playWord}
-                    onCollect={collect} onOpenReader={openReader}
-                    active={reader && reader.id === w.id}
+                    onCollect={collect}
+                    onOpenReader={openReader}
+                    active={reader && reader.id === word.id}
                   />
                 ))}
                 {visibleCount < filtered.length && (
                   <div ref={sentinelRef} className="load-more">
                     <span>Showing {visible.length} of {filtered.length}</span>
-                    <button className="txtbtn" onClick={() => setVisibleCount((c) => Math.min(c + 200, filtered.length))}>Load more</button>
+                    <button className="txtbtn" onClick={() => setVisibleCount((count) => Math.min(count + 200, filtered.length))}>Load more</button>
                   </div>
                 )}
               </div>
@@ -740,11 +987,11 @@ function App() {
 
       {reader && (
         <Reader
-          word={words.find((x) => x.id === reader.id) || reader}
+          word={words.find((word) => word.id === reader.id) || reader}
           audio={audio}
           onCollect={collect}
           onRecollect={recollect}
-          onUncollect={(id) => { uncollect(id); }}
+          onUncollect={uncollect}
           onAi={setAi}
           onLookup={setLookup}
           onClose={() => { setReader(null); setLookup(null); }}
@@ -753,22 +1000,20 @@ function App() {
 
       {lookup && (() => {
         const existing = findEntry(lookup.word);
-        const r = lookup.rect;
-        const left = Math.max(12, Math.min(r.left, window.innerWidth - 248));
-        const below = r.bottom + 184 < window.innerHeight;
-        const top = below ? r.bottom + 8 : r.top - 8;
+        const rect = lookup.rect;
+        const left = Math.max(12, Math.min(rect.left, window.innerWidth - 248));
+        const below = rect.bottom + 184 < window.innerHeight;
+        const top = below ? rect.bottom + 8 : rect.top - 8;
         return (
-          <div className="lookup-pop" style={{ left, top, transform: below ? "none" : "translateY(-100%)" }} onMouseDown={(e) => e.preventDefault()}>
+          <div className="lookup-pop" style={{ left, top, transform: below ? "none" : "translateY(-100%)" }} onMouseDown={(event) => event.preventDefault()}>
             <div className="lp-word">
               {lookup.word}
               <span className={"lp-status" + (existing ? " in" : "")}>
-                {existing ? "in your dictionary" + (LEVELS.includes(existing.level) ? " · " + existing.level : "") : "not in the dictionary yet"}
+                {existing ? `in your dictionary${LEVELS.includes(existing.level) ? ` · ${existing.level}` : ""}` : "not in the dictionary yet"}
               </span>
             </div>
             <div className="lp-actions">
-              <button className="txtbtn primary" onClick={() => openLookup(lookup.word)}>
-                <Icon.spark /> Explain
-              </button>
+              <button className="txtbtn primary" onClick={() => openLookup(lookup.word)}><Icon.spark /> Explain</button>
               <button className="txtbtn" onClick={() => collectLookup(lookup.word)} title="Collect this word">
                 {Icon.bookmark(false)({ width: 14, height: 14 })} Collect
               </button>
