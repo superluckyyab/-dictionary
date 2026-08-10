@@ -1,2 +1,13 @@
 .DS_Store
 .thumbnail
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+frontend/node_modules/
+frontend/dist/
+.env
+*.log
