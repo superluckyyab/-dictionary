@@ -143,3 +143,37 @@ test('propagates Supabase errors with operation context', async () => {
 
   await assert.rejects(service.restoreSession(), /restore session: network unavailable/)
 })
+
+test('finds an entry by normalized word and part of speech', async () => {
+  const { createDataService } = await loadModule()
+  const calls = []
+  const row = {
+    id: 'e1',
+    word: 'able',
+    part_of_speech: 'adjective',
+    cefr_level: 'A2',
+    definition: '',
+    definition_url: '',
+    audio_url: ''
+  }
+  const query = {
+    select() { return this },
+    ilike(column, value) { calls.push([column, value]); return this },
+    async maybeSingle() { return { data: row, error: null } }
+  }
+  const service = createDataService({
+    auth: {},
+    from(table) {
+      assert.equal(table, 'dictionary_entries')
+      return query
+    }
+  })
+
+  const result = await service.findEntry(' Able ', 'Adjective')
+
+  assert.deepEqual(calls, [
+    ['word', 'able'],
+    ['part_of_speech', 'adjective']
+  ])
+  assert.equal(result.id, 'e1')
+})

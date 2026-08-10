@@ -105,6 +105,17 @@
         return mergeDictionaryRows(entries, states)
       },
 
+      async findEntry(word, partOfSpeech) {
+        const result = await client
+          .from('dictionary_entries')
+          .select('*')
+          .ilike('word', String(word || '').trim().toLowerCase())
+          .ilike('part_of_speech', String(partOfSpeech || 'word').trim().toLowerCase())
+          .maybeSingle()
+        const row = ensureResult('find dictionary entry', result)
+        return row ? mapEntry(row, null) : null
+      },
+
       async createEntry(entry) {
         const result = await client
           .from('dictionary_entries')
