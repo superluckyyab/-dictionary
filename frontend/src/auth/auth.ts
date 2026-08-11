@@ -6,7 +6,7 @@ interface UserClaims {
 }
 
 export function createAdminCredentials(username: string, password: string) {
-  if (username.trim().toLowerCase() !== 'admin' || !password) {
+  if (username !== 'admin' || !password) {
     throw new Error('Invalid username or password.');
   }
 

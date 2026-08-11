@@ -14,6 +14,14 @@ describe('createAdminCredentials', () => {
       'Invalid username or password.',
     );
   });
+
+  it('rejects normalized admin username variants with the generic error', () => {
+    for (const username of ['ADMIN', ' admin ']) {
+      expect(() => createAdminCredentials(username, 'example-password')).toThrow(
+        'Invalid username or password.',
+      );
+    }
+  });
 });
 
 describe('isOwner', () => {
