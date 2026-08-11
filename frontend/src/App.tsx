@@ -80,6 +80,13 @@ export default function App() {
             <h1 className="word-title text-2xl font-bold text-[#2C2A26]">English Dictionary</h1>
             <p className="text-xs text-[#8A857B] mt-0.5">CEFR A1–C2 vocabulary</p>
           </div>
+          <button
+            type="button"
+            onClick={signOut}
+            className="absolute top-4 right-4 text-xs text-[#8A857B] hover:text-[#8C2F2A] transition-colors"
+          >
+            Sign out
+          </button>
           <TopTabs
             activeTab={tab}
             onTabChange={setTab}
@@ -87,7 +94,6 @@ export default function App() {
             onAddWord={() => setShowAddModal(true)}
             onImport={() => setShowImportModal(true)}
             owner={owner}
-            onSignOut={signOut}
           />
           <SearchBar value={searchInput} onChange={setSearchInput} />
           <LevelFilter selected={levels} onChange={setLevels} />
