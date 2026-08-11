@@ -13,7 +13,7 @@ import ImportModal from './components/ImportModal';
 import { useAuth } from './auth/AuthGate';
 
 export default function App() {
-  const { owner, anonymous, signOut } = useAuth();
+  const { owner, signOut } = useAuth();
   const [tab, setTab] = useState<TabView>('all');
   const [searchInput, setSearchInput] = useState('');
   const [levels, setLevels] = useState<string[]>([]);
@@ -77,10 +77,7 @@ export default function App() {
         {/* Header */}
         <div className="sticky top-0 z-10 bg-[#EAE3D2] border-b border-[#D4CBB8] shadow-sm">
           <div className="px-4 pt-4 pb-1">
-<div className="flex items-start justify-between gap-3">
-              <h1 className="word-title text-2xl font-bold text-[#2C2A26]">English Dictionary</h1>
-              <button type="button" onClick={signOut} className="text-xs text-[#8A857B] hover:text-[#8C2F2A]">{anonymous ? '退出体验' : '退出登录'}</button>
-            </div>
+            <h1 className="word-title text-2xl font-bold text-[#2C2A26]">English Dictionary</h1>
             <p className="text-xs text-[#8A857B] mt-0.5">CEFR A1–C2 vocabulary</p>
           </div>
           <TopTabs
@@ -90,6 +87,7 @@ export default function App() {
             onAddWord={() => setShowAddModal(true)}
             onImport={() => setShowImportModal(true)}
             owner={owner}
+            onSignOut={signOut}
           />
           <SearchBar value={searchInput} onChange={setSearchInput} />
           <LevelFilter selected={levels} onChange={setLevels} />

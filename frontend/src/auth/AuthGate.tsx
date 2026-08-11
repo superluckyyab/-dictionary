@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type FormEvent
 import type { User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { createAdminCredentials, isOwner } from './auth';
+import { AUTH_COPY } from './authCopy';
 
 type AuthContextValue = {
   user: User;
@@ -53,7 +54,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
       if (signInError) throw signInError;
     } catch {
-      setError('用户名或密码不正确');
+      setError(AUTH_COPY.invalidCredentials);
     } finally {
       setSubmitting(false);
     }
@@ -63,7 +64,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     setError('');
     setSubmitting(true);
     const { error: signInError } = await supabase.auth.signInAnonymously();
-    if (signInError) setError('暂时无法进入体验，请稍后重试');
+    if (signInError) setError(AUTH_COPY.guestError);
     setSubmitting(false);
   }
 
@@ -78,7 +79,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   }, [user]);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#EAE3D2] grid place-items-center text-[#8A857B]">Loading…</div>;
+    return <div className="min-h-screen bg-[#EAE3D2] grid place-items-center text-[#8A857B]">{AUTH_COPY.loading}</div>;
   }
 
   if (user && contextValue) {
@@ -87,27 +88,27 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   return (
     <main className="min-h-screen bg-[#EAE3D2] grid place-items-center px-4">
-      <section className="w-full max-w-sm rounded-xl border border-[#D4CBB8] bg-[#F2EDE0] p-6 shadow-sm">
+      <section className="w-full max-w-sm rounded-2xl border border-[#D4CBB8] bg-[#F2EDE0] p-6 shadow-sm">
         <h1 className="word-title text-2xl font-bold text-[#2C2A26]">English Dictionary</h1>
-        <p className="mt-1 text-sm text-[#8A857B]">登录永久词典，或匿名临时体验</p>
+        <p className="mt-1 text-sm text-[#8A857B]">{AUTH_COPY.intro}</p>
         {!isSupabaseConfigured && (
-          <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">服务尚未配置完成</p>
+          <p className="mt-4 rounded-lg bg-[#EAE3D2] px-3 py-2 text-sm text-[#8C2F2A]">{AUTH_COPY.configurationError}</p>
         )}
         <form className="mt-5 space-y-3" onSubmit={handleAdminLogin}>
-          <label className="block text-sm text-[#2C2A26]">
-            用户名
-            <input className="mt-1 w-full rounded-md border border-[#C8BFA8] bg-white px-3 py-2 outline-none focus:border-[#8C2F2A]" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+          <label className="block text-xs font-medium text-[#5A5550]">
+            {AUTH_COPY.username}
+            <input className="mt-1 w-full rounded-lg border border-[#D4CBB8] bg-[#EAE3D2] px-3 py-2 text-sm text-[#2C2A26] outline-none focus:border-[#8C2F2A]" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
           </label>
-          <label className="block text-sm text-[#2C2A26]">
-            密码
-            <input className="mt-1 w-full rounded-md border border-[#C8BFA8] bg-white px-3 py-2 outline-none focus:border-[#8C2F2A]" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+          <label className="block text-xs font-medium text-[#5A5550]">
+            {AUTH_COPY.password}
+            <input className="mt-1 w-full rounded-lg border border-[#D4CBB8] bg-[#EAE3D2] px-3 py-2 text-sm text-[#2C2A26] outline-none focus:border-[#8C2F2A]" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
           </label>
           {error && <p className="text-sm text-[#8C2F2A]">{error}</p>}
-          <button className="w-full rounded-md bg-[#8C2F2A] px-4 py-2.5 font-medium text-white hover:bg-[#6B1F1A] disabled:opacity-60" disabled={submitting || !isSupabaseConfigured} type="submit">登录</button>
+          <button className="w-full rounded-lg bg-[#8C2F2A] px-4 py-2.5 text-sm font-medium text-[#F2EDE0] hover:bg-[#6B1F1A] disabled:opacity-50 transition-colors" disabled={submitting || !isSupabaseConfigured} type="submit">{AUTH_COPY.signIn}</button>
         </form>
-        <div className="my-4 flex items-center gap-3 text-xs text-[#8A857B]"><span className="h-px flex-1 bg-[#D4CBB8]" />或<span className="h-px flex-1 bg-[#D4CBB8]" /></div>
-        <button className="w-full rounded-md border border-[#8C2F2A] px-4 py-2.5 font-medium text-[#8C2F2A] hover:bg-[#EAE3D2] disabled:opacity-60" disabled={submitting || !isSupabaseConfigured} onClick={handleGuestLogin} type="button">匿名体验</button>
-        <p className="mt-3 text-center text-xs text-[#8A857B]">匿名体验记录仅保存在该临时账号中</p>
+        <div className="my-4 h-px bg-[#D4CBB8]" />
+        <button className="w-full rounded-lg border border-[#D4CBB8] bg-[#F2EDE0] px-4 py-2.5 text-sm font-medium text-[#5A5550] hover:border-[#8C2F2A] hover:text-[#8C2F2A] disabled:opacity-50 transition-colors" disabled={submitting || !isSupabaseConfigured} onClick={handleGuestLogin} type="button">{AUTH_COPY.guestAction}</button>
+        <p className="mt-3 text-center text-xs text-[#8A857B]">{AUTH_COPY.guestNote}</p>
       </section>
     </main>
   );

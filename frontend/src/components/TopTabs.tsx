@@ -1,5 +1,6 @@
 import type { TabView } from '../types';
 import type { Stats } from '../types';
+import { AUTH_COPY } from '../auth/authCopy';
 
 interface Props {
   activeTab: TabView;
@@ -7,10 +8,11 @@ interface Props {
   stats?: Stats;
   onAddWord: () => void;
   onImport: () => void;
+  onSignOut: () => void;
   owner: boolean;
 }
 
-export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onImport, owner }: Props) {
+export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onImport, onSignOut, owner }: Props) {
   const tabs: { key: TabView; label: string; icon?: string; count?: number }[] = [
     { key: 'all', label: 'All', count: stats?.total },
     { key: 'unknown', label: 'Unknown', icon: '×', count: stats?.unknown },
@@ -50,7 +52,8 @@ export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onIm
           );
         })}
       </div>
-      {owner && <div className="flex gap-2">
+      <div className="flex gap-2">
+        {owner && <>
         <button
           onClick={onAddWord}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8C2F2A] text-[#F2EDE0] rounded-lg text-sm font-medium hover:bg-[#6B1F1A] transition-colors"
@@ -65,7 +68,14 @@ export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onIm
           <span className="text-base leading-none">↑</span>
           Import
         </button>
-      </div>}
+        </>}
+        <button
+          onClick={onSignOut}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F2EDE0] text-[#5A5550] border border-[#D4CBB8] rounded-lg text-sm font-medium hover:border-[#8C2F2A] hover:text-[#8C2F2A] transition-colors"
+        >
+          {AUTH_COPY.signOut}
+        </button>
+      </div>
     </div>
   );
 }
