@@ -11,6 +11,7 @@ interface Props {
   onToggleStatus: (word: Word) => void;
   onToggleBookmark: (word: Word) => void;
   onDelete: (word: Word) => void;
+  canDelete: boolean;
   total: number;
   isLoading?: boolean;
 }
@@ -24,6 +25,7 @@ export default function WordList({
   onToggleStatus,
   onToggleBookmark,
   onDelete,
+  canDelete,
   total,
   isLoading,
 }: Props) {
@@ -76,6 +78,7 @@ export default function WordList({
           onToggleStatus={onToggleStatus}
           onToggleBookmark={onToggleBookmark}
           onDelete={onDelete}
+          canDelete={canDelete}
         />
       ))}
       {hasNextPage && (

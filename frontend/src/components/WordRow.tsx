@@ -9,6 +9,7 @@ interface Props {
   onToggleStatus: (word: Word) => void;
   onToggleBookmark: (word: Word) => void;
   onDelete: (word: Word) => void;
+  canDelete: boolean;
 }
 
 function speak(text: string) {
@@ -22,7 +23,7 @@ function speak(text: string) {
   window.speechSynthesis.speak(utt);
 }
 
-export default function WordRow({ word, mode, onToggleStatus, onToggleBookmark, onDelete }: Props) {
+export default function WordRow({ word, mode, onToggleStatus, onToggleBookmark, onDelete, canDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isKnown = word.status === 'known';
 
@@ -110,13 +111,13 @@ export default function WordRow({ word, mode, onToggleStatus, onToggleBookmark, 
           </button>
 
           {/* Delete */}
-          <button
+          {canDelete && <button
             onClick={() => onDelete(word)}
             className="text-[#C8BFA8] hover:text-[#8C2F2A] transition-colors text-xs p-1"
             title="Delete"
           >
             ✕
-          </button>
+          </button>}
         </div>
       </div>
 

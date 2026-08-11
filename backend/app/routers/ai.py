@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
+import os
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
-_API_KEY = "c718f5b6ab5f41c890d84bbf8f9ed240.PQwZfjzCFY2EJUNK"
+_API_KEY = os.getenv("ZAI_API_KEY")
 _API_URL = "https://api.z.ai/api/paas/v4/chat/completions"
 _MODEL   = "glm-4.5-flash"
 
@@ -15,6 +16,8 @@ class CompleteRequest(BaseModel):
 
 @router.post("/complete")
 async def ai_complete(req: CompleteRequest):
+    if not _API_KEY:
+        raise HTTPException(status_code=503, detail="AI service is not configured")
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(

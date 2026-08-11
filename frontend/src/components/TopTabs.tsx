@@ -7,9 +7,10 @@ interface Props {
   stats?: Stats;
   onAddWord: () => void;
   onImport: () => void;
+  owner: boolean;
 }
 
-export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onImport }: Props) {
+export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onImport, owner }: Props) {
   const tabs: { key: TabView; label: string; icon?: string; count?: number }[] = [
     { key: 'all', label: 'All', count: stats?.total },
     { key: 'unknown', label: 'Unknown', icon: '×', count: stats?.unknown },
@@ -49,7 +50,7 @@ export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onIm
           );
         })}
       </div>
-      <div className="flex gap-2">
+      {owner && <div className="flex gap-2">
         <button
           onClick={onAddWord}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8C2F2A] text-[#F2EDE0] rounded-lg text-sm font-medium hover:bg-[#6B1F1A] transition-colors"
@@ -64,7 +65,7 @@ export default function TopTabs({ activeTab, onTabChange, stats, onAddWord, onIm
           <span className="text-base leading-none">↑</span>
           Import
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

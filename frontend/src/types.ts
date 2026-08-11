@@ -4,7 +4,7 @@ export interface Definition {
 }
 
 export interface Word {
-  id: number;
+  id: string;
   word: string;
   part_of_speech?: string | null;
   level?: string | null;
